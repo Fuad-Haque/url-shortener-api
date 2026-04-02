@@ -31,7 +31,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
 # Passlib context
 # ---------------------------------------------------------------------------
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
 
 # ---------------------------------------------------------------------------
 # OAuth2 scheme
