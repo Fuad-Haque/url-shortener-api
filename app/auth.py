@@ -31,7 +31,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
 # Passlib context
 # ---------------------------------------------------------------------------
 
-pwd_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ---------------------------------------------------------------------------
 # OAuth2 scheme
@@ -46,12 +46,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 def hash_password(password: str) -> str:
     """Return a bcrypt hash of *password*."""
-    return pwd_context.hash(password)
+    return pwd_context.hash(password[:72])
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Return **True** if *plain* matches *hashed*."""
-    return pwd_context.verify(plain, hashed)
+    return pwd_context.verify(plain[:72], hashed)
 
 
 # ---------------------------------------------------------------------------
