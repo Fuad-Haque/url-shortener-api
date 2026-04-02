@@ -3,8 +3,8 @@
 Full-featured URL shortening service with authentication, click tracking,
 and link expiry. Built with FastAPI, deployed on Railway.
 
-**Live URL:** https://url-shortener-fuad.railway.app
-**Docs:** https://url-shortener-fuad.railway.app/docs
+**Live URL:** https://web-production-5bd50.up.railway.app
+**Docs:** https://web-production-5bd50.up.railway.app/docs
 **Tech:** Python · FastAPI · JWT · Pydantic · Railway
 
 ## Features
