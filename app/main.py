@@ -5,6 +5,7 @@ Endpoints
 ---------
 POST   /auth/register        Register a new account
 POST   /auth/token           Obtain a JWT (OAuth2 password flow)
+GET    /auth/me              Get current user info
 POST   /shorten              Create a short link          [auth required]
 GET    /{short_code}         Redirect to original URL
 GET    /stats/{short_code}   Link statistics              [auth required, owner only]
@@ -26,6 +27,7 @@ from fastapi import (
     HTTPException,
     status,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -75,13 +77,26 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://*.vercel.app",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------------------------------------------------------------------------
 # Background task helpers
 # ---------------------------------------------------------------------------
 
 def _log_creation(short_code: str, owner_username: str) -> None:
-    """Fire-and-forget: log a link creation event to stdout."""
     print(
         f"[LINK CREATED] code={short_code!r} owner={owner_username!r} "
         f"ts={datetime.now(timezone.utc).isoformat()}"
@@ -89,7 +104,6 @@ def _log_creation(short_code: str, owner_username: str) -> None:
 
 
 def _record_visit(short_code: str) -> None:
-    """Fire-and-forget: increment click counter and append a visit timestamp."""
     if short_code in links_db:
         links_db[short_code]["clicks"] += 1
     if short_code not in visits_db:
@@ -129,14 +143,12 @@ def _build_link_response(link: dict[str, Any]) -> LinkResponse:
     tags=["auth"],
 )
 async def register(user_in: UserCreate) -> UserResponse:
-    # --- username uniqueness ---
     if get_user_by_username(user_in.username):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Username '{user_in.username}' is already taken.",
         )
 
-    # --- email uniqueness ---
     if get_user_by_email(user_in.email):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -181,6 +193,21 @@ async def login(form: OAuth2PasswordRequestForm = Depends()) -> Token:
     return Token(access_token=token, token_type="bearer")
 
 
+@app.get(
+    "/auth/me",
+    response_model=UserResponse,
+    summary="Get current user info",
+    tags=["auth"],
+)
+async def me(current_user: dict[str, Any] = Depends(get_current_user)) -> UserResponse:
+    return UserResponse(
+        id=current_user["id"],
+        username=current_user["username"],
+        email=current_user["email"],
+        created_at=current_user["created_at"],
+    )
+
+
 # ===========================================================================
 # Link management endpoints
 # ===========================================================================
@@ -198,14 +225,12 @@ async def shorten(
     background_tasks: BackgroundTasks,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> LinkResponse:
-    # Extra runtime guard (Pydantic validator already covers this)
     if not is_valid_url(payload.url):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="URL must start with http:// or https://.",
         )
 
-    # --- determine short code ---
     if payload.custom_alias:
         if payload.custom_alias in links_db:
             raise HTTPException(
@@ -214,7 +239,6 @@ async def shorten(
             )
         short_code = payload.custom_alias
     else:
-        # Retry loop guarantees uniqueness under high collision probability
         for _ in range(10):
             candidate = generate_short_code()
             if candidate not in links_db:
@@ -326,7 +350,6 @@ async def my_links(
         link for link in links_db.values()
         if link["owner_id"] == current_user["id"]
     ]
-    # Sort newest-first
     owned.sort(key=lambda lnk: lnk["created_at"], reverse=True)
     return [_build_link_response(lnk) for lnk in owned]
 
